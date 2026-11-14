@@ -34,6 +34,61 @@ self.fetch = function (input, init) {
     return realFetch(input, init);
 };
 
+// 命令替换（$() / 反引号 / 进程替换 <()）内的命令文本提取（平衡扫描，支持嵌套；
+// 引号内的括号按引号串跳过）。刻意不写正则、反引号用 fromCharCode——本文件是
+// 模板字符串，字面的反斜杠与反引号都要双写转义，实测踩过一次坑（见下方分段正则注释）。
+function subCommands(text) {
+    var BT = String.fromCharCode(96);
+    var out = [];
+    var n = text.length;
+    var i = 0;
+    while (i < n) {
+        var ch = text[i];
+        if ((ch === '$' || ch === '<') && text[i + 1] === '(') {
+            var depth = 1;
+            var j = i + 2;
+            while (j < n && depth > 0) {
+                var c = text[j];
+                if (c === '(') depth += 1;
+                else if (c === ')') depth -= 1;
+                else if (c === '\\'' || c === '"') {
+                    var quote = c;
+                    j += 1;
+                    while (j < n && text[j] !== quote) j += 1;
+                }
+                j += 1;
+            }
+            if (depth === 0) {
+                var inner = text.slice(i + 2, j - 1);
+                if (inner.trim()) {
+                    var nested = subCommands(inner);
+                    for (var k = 0; k < nested.length; k += 1) out.push(nested[k]);
+                    out.push(inner);
+                }
+                i = j;
+                continue;
+            }
+            i += 2;
+            continue;
+        }
+        if (ch === BT) {
+            var close = text.indexOf(BT, i + 1);
+            if (close > i) {
+                var inner2 = text.slice(i + 1, close);
+                if (inner2.trim()) {
+                    var nested2 = subCommands(inner2);
+                    for (var k2 = 0; k2 < nested2.length; k2 += 1) out.push(nested2[k2]);
+                    out.push(inner2);
+                }
+                i = close + 1;
+                continue;
+            }
+        }
+        i += 1;
+    }
+    return out;
+}
+
 self.onmessage = async function (e) {
     var msg = e.data;
     if (msg.type === 'init') {
@@ -60,8 +115,22 @@ self.onmessage = async function (e) {
         try {
             var t0 = Date.now();
             // 红队 P0：多命令链的 benign 前缀会稀释危险段（meanPool 均值池化）——
-            // 按 shell 命令分隔符切段、逐段推理取 max；与训练口径自洽（危险段命中正权）
-            var segs = String(msg.command || '').split(/\r?\n|&&|\|\||;|\|/).map(function (x) { return x.trim(); }).filter(Boolean);
+            // 按 shell 命令分隔符切段、逐段推理取 max；与训练口径自洽（危险段命中正权）。
+            // 正则在模板字符串里必须**双写反斜杠**（build 事故实录：单写时 \\r \\n \\| 被
+            // cooked 成真实控制符与裸竖线，产物正则带空分支逐字符切段——真机全命令
+            // 0.87-0.99 静默失效，v0.2.1 及之前从未真正生效）。
+            var segs = String(msg.command || '').split(/\\r?\\n|&&|\\|\\||;|\\|/).map(function (x) { return x.trim(); }).filter(Boolean);
+            // 红队 F1（2026-11-15）：命令替换内的命令与洪泛同段会被均值池化稀释
+            // （实测最坏 0.1579 贴 0.15 阈值）——内层命令切成独立段参与 max（与主仓 lcSegment 同口径）
+            var subs = [];
+            for (var gi = 0; gi < segs.length; gi += 1) {
+                var found = subCommands(segs[gi]);
+                for (var fi = 0; fi < found.length; fi += 1) {
+                    var subText = found[fi].trim();
+                    if (subText) subs.push(subText);
+                }
+            }
+            segs = segs.concat(subs);
             if (!segs.length) segs = [String(msg.command || '')];
             var best = 0, seen = 0;
             var truncated = false;

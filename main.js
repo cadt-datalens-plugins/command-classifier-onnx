@@ -169,7 +169,7 @@
         label: '端侧分类器（ONNX）状态',
         run() {
             const lines = [
-                '插件：command-classifier-onnx 0.2.1（二期 · ONNX 推理）',
+                '插件：command-classifier-onnx 0.2.2（二期 · ONNX 推理）',
                 '模型：' + (state.modelInfo || '尚未加载（首次分类时懒加载）'),
                 '阶段：' + state.phase + (state.error ? '（' + state.error.slice(0, 120) + '）' : '') + (state.lastMs ? ' · 最近推理 ' + state.lastMs + 'ms' : ''),
                 '',
