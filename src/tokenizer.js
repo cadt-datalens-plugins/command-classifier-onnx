@@ -22,7 +22,8 @@ function stripAccents(text) {
 }
 
 function bertNormalize(text) {
-    let out = String(text == null ? '' : text)
+    // NFKC 兼容分解先行：全角字符折叠为半角（红队 P1：全角化危险命令全部变 [UNK] 绕过）
+    let out = String(text == null ? '' : text).normalize('NFKC')
         .replace(CONTROL_RE, '')
         .replace(WHITESPACE_RE, ' ')
         .trim();

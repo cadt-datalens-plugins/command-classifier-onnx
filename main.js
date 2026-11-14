@@ -136,36 +136,8 @@
         };
     }
 
-    // ---------- 一期回退：词表打分 ----------
-    const DANGER_PATTERNS = [
-        {re: /\brm\s+(-[a-z]*r[a-z]*f|-rf|--recursive\s+--force)/i, w: 0.9, name: '递归强删'},
-        {re: /\b(del|erase)\b[^|]*\/(f|s)\b/i, w: 0.85, name: '强删文件'},
-        {re: /\b(rmdir|rd)\s+\/s/i, w: 0.85, name: '递归删目录'},
-        {re: /remove-item[^|]*-recurse/i, w: 0.85, name: '递归删目录'},
-        {re: /\bdd\b[^|]*of=\/dev\//i, w: 0.95, name: '裸设备写入'},
-        {re: /\bmkfs\S*\b|\bformat\s+[a-z]:/i, w: 0.95, name: '格式化'},
-        {re: /\breg\s+(add|delete)\b/i, w: 0.7, name: '注册表修改'},
-        {re: /\|\s*(sh|bash|zsh|pwsh|powershell)\b/i, w: 0.75, name: '管道落地 shell'},
-        {re: /\biex\b|invoke-expression|powershell\s+(-enc|-encodedcommand)/i, w: 0.8, name: '代码执行'},
-        {re: /\b(taskkill|kill|pkill)\b[^|]*\/?(f|-9)/i, w: 0.6, name: '强杀进程'},
-        {re: /\bshutdown\b|\brestart-computer\b/i, w: 0.8, name: '关机重启'},
-        {re: /git\s+push\s+(-f|--force)/i, w: 0.55, name: '强推'},
-        {re: /git\s+(reset\s+--hard|clean\s+-[a-z]*f)/i, w: 0.6, name: '丢弃工作区'},
-        {re: /\bcurl\b[^|]*(-f|--form|-F)\b|\bcurl\b[^|]*-F\s+f=@/i, w: 0.7, name: '数据外传'},
-    ];
-
-    function fallbackScore(command) {
-        const text = String(command || '');
-        let score = 0;
-        const names = [];
-        for (const pattern of DANGER_PATTERNS) {
-            if (pattern.re.test(text)) {
-                score += pattern.w;
-                names.push(pattern.name);
-            }
-        }
-        return {score: Math.min(1, score), names};
-    }
+    // 一期词表回退已移除（红队 P0-2：14 条黑名单式正则未命中返回 0 分、32 类危险命令全档放行；
+    // ONNX 失败现改为抛错触发核心熔断，由线性模型与人工兜底）。
 
     // ---------- 注册分类器 ----------
     cadt.registerCommandClassifier({
@@ -176,16 +148,18 @@
             try {
                 await ensureWorker();
                 const result = await scoreInWorker(command);
-                return {score: Math.min(1, Math.max(0, result.score)), reason: 'MiniLM 语义嵌入判定（' + result.tokens + ' tok · ' + state.lastMs + 'ms）'};
+                if (result.truncated) {
+                    // 红队 P0 兜底：单段超 62 token 的命令 fail-closed（worker 已置 score=1）
+                    return {score: 1, reason: '命令超长（分段推理仍溢出窗口），fail-closed 转人工'};
+                }
+                return {score: Math.min(1, Math.max(0, result.score)), reason: 'MiniLM 语义嵌入判定（' + result.segs + ' 段 · ' + state.lastMs + 'ms）'};
             } catch (e) {
-                // 加载/推理失败：回退词表打分，不抛（连续失败熔断由核心处理）
+                // 红队 P0-2：加载/推理失败必须抛错触发核心熔断——静默回退词表会让 32 类
+                // 危险命令（curl -d 外传 / chmod -R 777 / LOLBAS 等）得 0 分全档放行，
+                // 且失败计数永不增长、系统长期停留在不安全降级态。
                 state.error = String((e && e.message) || e);
+                throw new Error('语义模型不可用：' + state.error);
             }
-            const fb = fallbackScore(command);
-            return {
-                score: fb.score,
-                reason: '词表回退命中：' + (fb.names.join('、') || '无') + (state.error ? '（ONNX：' + state.error.slice(0, 60) + '）' : ''),
-            };
         },
     });
 
