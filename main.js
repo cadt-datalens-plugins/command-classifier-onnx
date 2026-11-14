@@ -49,6 +49,9 @@
                 readJson('model/head.json'),
             ]);
             state.modelInfo = 'MiniLM int8 · head ' + (head.version || '?') + ' · ' + Math.round(modelBuffer.byteLength / 1048576) + 'MB';
+            // ort.min.js 同样转 blob URL；必须在 executor 外构造（executor 是普通函数，
+            // 里面写 await 是语法错误——曾导致整个插件加载失败、状态行误报「未安装」）
+            const ortUrl = URL.createObjectURL(new Blob([await (await fetch(ortBlobUrl)).text()], {type: 'text/javascript'}));
             const worker = new Worker(URL.createObjectURL(new Blob([await (await fetch(workerBlobUrl)).text()], {type: 'text/javascript'})));
             state.worker = worker;
             await new Promise((resolve, reject) => {
@@ -61,7 +64,7 @@
                 worker.onerror = (e) => { clearTimeout(timer); reject(new Error('Worker 异常：' + ((e && e.message) || 'unknown'))); };
                 worker.postMessage({
                     type: 'init',
-                    ortUrl: URL.createObjectURL(new Blob([await (await fetch(ortBlobUrl)).text()], {type: 'text/javascript'})),
+                    ortUrl,
                     modelBuffer,
                     wasmBuffer,
                     tokenizerData,
@@ -192,7 +195,7 @@
         label: '端侧分类器（ONNX）状态',
         run() {
             const lines = [
-                '插件：command-classifier-onnx 0.2.0（二期 · ONNX 推理）',
+                '插件：command-classifier-onnx 0.2.1（二期 · ONNX 推理）',
                 '模型：' + (state.modelInfo || '尚未加载（首次分类时懒加载）'),
                 '阶段：' + state.phase + (state.error ? '（' + state.error.slice(0, 120) + '）' : '') + (state.lastMs ? ' · 最近推理 ' + state.lastMs + 'ms' : ''),
                 '',
