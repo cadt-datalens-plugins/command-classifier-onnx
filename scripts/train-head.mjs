@@ -83,6 +83,22 @@ async function main() {
         }
         lr *= DECAY;
     }
+    // 阶段二：灰色强化（硬负样本挖掘）——灰色类在嵌入空间语义偏良性（install / export PATH /
+    // robocopy 等），冻结嵌入上靠主循环拉不动边界；灰/安交替重放收紧灰色决策面、
+    // 同时用安全样本按住决策面别扫过安全区（比例 1:1，防止过度打扰）。
+    for (let epoch = 0; epoch < 8; epoch += 1) {
+        const grayIdx = train.samples.map((s, i) => (s.cls === 'gray' ? i : -1)).filter((i) => i >= 0);
+        const safeIdx = train.samples.map((s, i) => (s.cls === 'safe' ? i : -1)).filter((i) => i >= 0);
+        for (let i = grayIdx.length - 1; i > 0; i -= 1) {
+            const j = (epoch * 677 + i * 13 + 5) % (i + 1);
+            [grayIdx[i], grayIdx[j]] = [grayIdx[j], grayIdx[i]];
+        }
+        for (let i = 0; i < grayIdx.length; i += 1) {
+            headSgdStep(trainVectors[grayIdx[i]], head, 1, 0.04, L2);
+            headSgdStep(trainVectors[grayIdx[(i + 173) % grayIdx.length]], head, 1, 0.04, L2);
+            headSgdStep(trainVectors[safeIdx[(epoch * 131 + i * 7) % safeIdx.length]], head, 0, 0.025, L2);
+        }
+    }
 
     // 验证集指标：三档 allow 率 + 硬危险漏放
     const rows = val.samples.map((s, i) => ({command: s.command, cls: s.cls, y: s.label, score: headScore(valVectors[i], head)}));
