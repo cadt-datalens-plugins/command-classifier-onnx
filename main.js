@@ -6,7 +6,7 @@
     'use strict';
 
     if (typeof cadt.registerCommandClassifier !== 'function') {
-        try { cadt.flash('[命令语义分类器] 需要应用 ≥ 1.2.0（registerCommandClassifier 未就绪）'); } catch (e) {}
+        try { cadt.flash('[命令语义分类器] 应用版本过低：请更新到含命令分类器 API 的新版本'); } catch (e) {}
         return;
     }
 

@@ -7,5 +7,5 @@
     "license": "Apache-2.0",
     "entry": "main.js",
     "keywords": ["AI", "分类器", "安全", "命令", "ONNX"],
-    "minAppVersion": "1.2.0"
+    "minAppVersion": "1.0.0"
 }
