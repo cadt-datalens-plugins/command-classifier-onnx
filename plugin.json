@@ -1,0 +1,11 @@
+{
+    "id": "command-classifier-onnx",
+    "name": "命令语义分类器（ONNX）",
+    "version": "0.2.0",
+    "author": "CandySweet",
+    "description": "端侧命令风险分类器（语义模型）：MiniLM int8 ONNX（22MB）+ 逻辑回归头，经 registerCommandClassifier 注册到自动审批链，与内置线性分类器保守合并取最高分；推理在 Worker 内离线执行，加载失败自动回退词表打分。",
+    "license": "Apache-2.0",
+    "entry": "main.js",
+    "keywords": ["AI", "分类器", "安全", "命令", "ONNX"],
+    "minAppVersion": "1.2.0"
+}

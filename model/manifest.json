@@ -1,0 +1,16 @@
+{
+    "id": "text-classifier-mini-int8",
+    "model": "sentence-transformers/all-MiniLM-L6-v2（Xenova 导出 int8 量化 ONNX）",
+    "format": "onnx",
+    "quant": "int8",
+    "sizeMB": 22,
+    "maxLen": 64,
+    "embeddingDim": 384,
+    "head": "head.json（逻辑回归，语料 scripts/ 训练，金丝雀门槛把关）",
+    "files": {
+        "model_quantized.onnx": "sha1 待登记（随版本更新）",
+        "tokenizer.json": "HuggingFace 标准分词器（30522 词表）",
+        "head.json": "插件自训逻辑回归头"
+    },
+    "note": "载荷即本目录文件；更新模型时同步登记哈希与版本。"
+}
