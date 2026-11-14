@@ -1,0 +1,15 @@
+{
+    "name": "cadt-plugin-command-classifier-onnx",
+    "version": "0.2.0",
+    "private": true,
+    "type": "module",
+    "description": "CaDt-DataLens 插件：端侧命令语义分类器（MiniLM int8 ONNX + 逻辑回归头，浏览器 Worker 推理）",
+    "scripts": {
+        "train": "node scripts/train-head.mjs",
+        "verify": "node scripts/verify.mjs",
+        "build": "node scripts/build-worker.mjs"
+    },
+    "devDependencies": {
+        "onnxruntime-node": "1.17.3"
+    }
+}
