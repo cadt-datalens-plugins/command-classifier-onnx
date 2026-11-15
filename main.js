@@ -107,7 +107,9 @@
                     state.pending.delete(msg.id);
                     clearTimeout(pending.timer);
                     state.lastMs = msg.ms || 0;
-                    pending.resolve({score: msg.score, tokens: msg.tokens});
+                    // worker 结果里的 segs（段数）与 truncated（窗口溢出）必须透传：
+                    // classify 读 result.segs 拼 reason、读 result.truncated 走 fail-closed。
+                    pending.resolve({score: msg.score, tokens: msg.tokens, segs: msg.segs, truncated: msg.truncated});
                 }
                 return;
             }
